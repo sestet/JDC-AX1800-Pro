@@ -1,7 +1,7 @@
 # JDCloud RE-SS-01 (Arthur), Qualcomm NSS build
 CONFIG_TARGET_qualcommax=y
 CONFIG_TARGET_qualcommax_ipq60xx=y
-CONFIG_TARGET_DEVICE_qualcommax_ipq60xx_DEVICE_jdcloud_re-ss-01=y
+CONFIG_TARGET_qualcommax_ipq60xx_DEVICE_jdcloud_re-ss-01=y
 
 # LuCI, HTTPS, Chinese UI and Aurora
 CONFIG_PACKAGE_luci-ssl-openssl=y

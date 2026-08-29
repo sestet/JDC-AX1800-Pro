@@ -235,10 +235,22 @@ jobs:
             cp .config "$GITHUB_WORKSPACE/Config-$WRT_CONFIG-$WRT_HASH.txt"
           fi
 
-      - name: Validate Arthur Packages
+      - name: Validate Arthur Target and Packages
         if: env.WRT_PACKAGE_PROFILE == 'arthur'
         run: |
           cd ./wrt/
+
+          EXPECTED_DEVICE='CONFIG_TARGET_qualcommax_ipq60xx_DEVICE_jdcloud_re-ss-01=y'
+          EXPECTED_PROFILE='CONFIG_TARGET_PROFILE="DEVICE_jdcloud_re-ss-01"'
+          SELECTED_DEVICES="$(grep -cE '^CONFIG_TARGET_qualcommax_ipq60xx_DEVICE_.*=y$' .config || true)"
+
+          if ! grep -qxF "$EXPECTED_DEVICE" .config || \
+             ! grep -qxF "$EXPECTED_PROFILE" .config || \
+             [ "$SELECTED_DEVICES" -ne 1 ]; then
+            echo "::error::Arthur build did not resolve exclusively to JDCloud RE-SS-01"
+            grep -E '^CONFIG_TARGET_(BOARD|SUBTARGET|PROFILE)=|^CONFIG_TARGET_qualcommax_ipq60xx_DEVICE_.*=y$' .config || true
+            exit 1
+          fi
 
           MISSING_PACKAGE=0
           while IFS= read -r PACKAGE_CONFIG; do
