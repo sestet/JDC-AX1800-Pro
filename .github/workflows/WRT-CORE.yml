@@ -34,6 +34,10 @@ on:
       WRT_BRANCH:
         required: true
         type: string
+      WRT_COMMIT:
+        required: false
+        type: string
+        default: ''
       WRT_SOURCE:
         required: true
         type: string
@@ -55,6 +59,7 @@ env:
   WRT_PW: ${{inputs.WRT_PW}}
   WRT_REPO: ${{inputs.WRT_REPO}}
   WRT_BRANCH: ${{inputs.WRT_BRANCH}}
+  WRT_COMMIT: ${{inputs.WRT_COMMIT}}
   WRT_SOURCE: ${{inputs.WRT_SOURCE}}
   WRT_PACKAGE: ${{inputs.WRT_PACKAGE}}
   WRT_TEST: ${{inputs.WRT_TEST}}
@@ -99,6 +104,13 @@ jobs:
       - name: Clone Code
         run: |
           git clone --depth=1 --single-branch --branch $WRT_BRANCH $WRT_REPO ./wrt/
+
+          if [[ -n "$WRT_COMMIT" ]]; then
+            cd ./wrt/
+            git fetch --depth=1 origin "$WRT_COMMIT"
+            git checkout --detach FETCH_HEAD
+            cd $GITHUB_WORKSPACE
+          fi
 
           cd ./wrt/ && echo "WRT_HASH=$(git log -1 --pretty=format:'%h')" >> $GITHUB_ENV
 

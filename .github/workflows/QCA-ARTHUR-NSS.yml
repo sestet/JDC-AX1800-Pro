@@ -1,0 +1,59 @@
+# SPDX-License-Identifier: MIT
+
+name: QCA-ARTHUR-NSS
+
+on:
+  workflow_dispatch:
+    inputs:
+      SOURCE_COMMIT:
+        description: 'VIKINGYFY/immortalwrt commit to build'
+        default: 'a09f043206c1de5f5d6d9b1b515cfbc7b381f32f'
+        required: true
+        type: string
+      SSID:
+        description: 'Default Wi-Fi name'
+        default: 'OWRT'
+        required: true
+        type: string
+      WIFI_PASSWORD:
+        description: 'Default Wi-Fi password'
+        default: '12345678'
+        required: true
+        type: string
+      LAN_IP:
+        description: 'Default management address'
+        default: '192.168.10.1'
+        required: true
+        type: string
+      PACKAGE:
+        description: 'Optional package adjustments, one per line'
+        required: false
+        type: string
+      TEST:
+        description: 'Generate configuration only; do not compile firmware'
+        default: false
+        required: false
+        type: boolean
+
+permissions:
+  actions: write
+  contents: write
+
+jobs:
+  build:
+    name: IPQ60XX-ARTHUR-NSS-WIFI-YES
+    uses: ./.github/workflows/WRT-CORE.yml
+    with:
+      WRT_CONFIG: IPQ60XX-ARTHUR-NSS-WIFI-YES
+      WRT_THEME: aurora
+      WRT_NAME: ARTHUR
+      WRT_SSID: ${{inputs.SSID}}
+      WRT_WORD: ${{inputs.WIFI_PASSWORD}}
+      WRT_IP: ${{inputs.LAN_IP}}
+      WRT_PW: none
+      WRT_REPO: https://github.com/VIKINGYFY/immortalwrt.git
+      WRT_BRANCH: main
+      WRT_COMMIT: ${{inputs.SOURCE_COMMIT}}
+      WRT_SOURCE: VIKINGYFY/immortalwrt
+      WRT_PACKAGE: ${{inputs.PACKAGE}}
+      WRT_TEST: ${{inputs.TEST}}
