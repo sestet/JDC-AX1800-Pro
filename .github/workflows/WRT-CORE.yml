@@ -231,17 +231,34 @@ jobs:
           
           make defconfig -j$(nproc)
 
-          if [[ "$WRT_PACKAGE_PROFILE" == 'arthur' ]]; then
-            MISSING_PACKAGE=0
-            while IFS= read -r PACKAGE_CONFIG; do
-              if ! grep -qxF "$PACKAGE_CONFIG" .config; then
-                echo "Requested package was not selected: $PACKAGE_CONFIG" >&2
-                MISSING_PACKAGE=1
-              fi
-            done < <(grep -E '^CONFIG_PACKAGE_[A-Za-z0-9_.+-]+=y$' "$GITHUB_WORKSPACE/Config/$WRT_CONFIG.txt")
-            [ "$MISSING_PACKAGE" -eq 0 ] || exit 1
+          if [[ "$WRT_TEST" == 'true' ]]; then
+            cp .config "$GITHUB_WORKSPACE/Config-$WRT_CONFIG-$WRT_HASH.txt"
           fi
 
+      - name: Validate Arthur Packages
+        if: env.WRT_PACKAGE_PROFILE == 'arthur'
+        run: |
+          cd ./wrt/
+
+          MISSING_PACKAGE=0
+          while IFS= read -r PACKAGE_CONFIG; do
+            if grep -qxF "$PACKAGE_CONFIG" .config; then
+              continue
+            fi
+
+            PACKAGE_NAME="${PACKAGE_CONFIG#CONFIG_PACKAGE_}"
+            PACKAGE_NAME="${PACKAGE_NAME%=y}"
+            echo "::error::Requested package was not selected: $PACKAGE_CONFIG"
+            grep -E "^(CONFIG_PACKAGE_${PACKAGE_NAME}=|# CONFIG_PACKAGE_${PACKAGE_NAME} is not set)" .config || true
+            grep -n -A20 -B3 -F "config PACKAGE_$PACKAGE_NAME" tmp/.config-package.in || true
+            MISSING_PACKAGE=1
+          done < <(grep -E '^CONFIG_PACKAGE_[A-Za-z0-9_.+-]+=y$' "$GITHUB_WORKSPACE/Config/$WRT_CONFIG.txt")
+
+          [ "$MISSING_PACKAGE" -eq 0 ]
+
+      - name: Clean Build Artifacts
+        run: |
+          cd ./wrt/
           make clean -j$(nproc)
 
       - name: Download Packages
@@ -318,11 +335,11 @@ jobs:
           fi
 
       - name: Upload Test Configuration
-        if: env.WRT_TEST == 'true'
+        if: always() && env.WRT_TEST == 'true'
         uses: actions/upload-artifact@v4
         with:
           name: config-${{env.WRT_CONFIG}}-${{env.WRT_HASH}}
-          path: ./wrt/upload/Config-*.txt
+          path: ./Config-*.txt
           if-no-files-found: error
           retention-days: 7
 
