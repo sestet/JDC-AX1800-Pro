@@ -47,6 +47,17 @@ on:
       WRT_TEST:
         required: false
         type: string
+      WRT_USE_GENERAL:
+        required: false
+        type: boolean
+        default: true
+      WRT_PACKAGE_PROFILE:
+        required: false
+        type: string
+        default: general
+    secrets:
+      WRT_WIFI_PASSWORD:
+        required: false
 
 env:
   GITHUB_TOKEN: ${{secrets.GITHUB_TOKEN}}
@@ -54,7 +65,7 @@ env:
   WRT_THEME: ${{inputs.WRT_THEME}}
   WRT_NAME: ${{inputs.WRT_NAME}}
   WRT_SSID: ${{inputs.WRT_SSID}}
-  WRT_WORD: ${{inputs.WRT_WORD}}
+  WRT_WORD: ${{secrets.WRT_WIFI_PASSWORD || inputs.WRT_WORD}}
   WRT_IP: ${{inputs.WRT_IP}}
   WRT_PW: ${{inputs.WRT_PW}}
   WRT_REPO: ${{inputs.WRT_REPO}}
@@ -63,6 +74,8 @@ env:
   WRT_SOURCE: ${{inputs.WRT_SOURCE}}
   WRT_PACKAGE: ${{inputs.WRT_PACKAGE}}
   WRT_TEST: ${{inputs.WRT_TEST}}
+  WRT_USE_GENERAL: ${{inputs.WRT_USE_GENERAL}}
+  WRT_PACKAGE_PROFILE: ${{inputs.WRT_PACKAGE_PROFILE}}
 
 jobs:
   core:
@@ -175,8 +188,19 @@ jobs:
         run: |
           cd ./wrt/package/
 
-          $GITHUB_WORKSPACE/Scripts/Packages.sh
-          $GITHUB_WORKSPACE/Scripts/Handles.sh
+          case "$WRT_PACKAGE_PROFILE" in
+            arthur)
+              $GITHUB_WORKSPACE/Scripts/Packages-arthur.sh
+              ;;
+            general|'')
+              $GITHUB_WORKSPACE/Scripts/Packages.sh
+              $GITHUB_WORKSPACE/Scripts/Handles.sh
+              ;;
+            *)
+              echo "Unknown package profile: $WRT_PACKAGE_PROFILE" >&2
+              exit 1
+              ;;
+          esac
 
       - name: Custom Settings
         run: |
@@ -185,7 +209,7 @@ jobs:
           # ===== 修复 node-pnpm 因上游文件布局变化导致的 cp 失败 =====
           #$GITHUB_WORKSPACE/Scripts/node-pnpm-patch.sh
 
-          if [[ "${WRT_CONFIG,,}" == *"test"* ]]; then
+          if [[ "${WRT_CONFIG,,}" == *"test"* || "$WRT_USE_GENERAL" != 'true' ]]; then
             cat $GITHUB_WORKSPACE/Config/$WRT_CONFIG.txt >> .config
           else
             cat $GITHUB_WORKSPACE/Config/$WRT_CONFIG.txt $GITHUB_WORKSPACE/Config/GENERAL.txt >> .config
@@ -205,7 +229,20 @@ jobs:
           # 可选：如需强制重新下载包，取消下面一行的注释（会清空 dl/，需自行权衡）
           # rm -rf ./dl/*
           
-          make defconfig -j$(nproc) && make clean -j$(nproc)
+          make defconfig -j$(nproc)
+
+          if [[ "$WRT_PACKAGE_PROFILE" == 'arthur' ]]; then
+            MISSING_PACKAGE=0
+            while IFS= read -r PACKAGE_CONFIG; do
+              if ! grep -qxF "$PACKAGE_CONFIG" .config; then
+                echo "Requested package was not selected: $PACKAGE_CONFIG" >&2
+                MISSING_PACKAGE=1
+              fi
+            done < <(grep -E '^CONFIG_PACKAGE_[A-Za-z0-9_.+-]+=y$' "$GITHUB_WORKSPACE/Config/$WRT_CONFIG.txt")
+            [ "$MISSING_PACKAGE" -eq 0 ] || exit 1
+          fi
+
+          make clean -j$(nproc)
 
       - name: Download Packages
         if: env.WRT_TEST != 'true'
@@ -280,7 +317,17 @@ jobs:
             make clean -j$(nproc)
           fi
 
+      - name: Upload Test Configuration
+        if: env.WRT_TEST == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: config-${{env.WRT_CONFIG}}-${{env.WRT_HASH}}
+          path: ./wrt/upload/Config-*.txt
+          if-no-files-found: error
+          retention-days: 7
+
       - name: Release Firmware
+        if: env.WRT_TEST != 'true'
         uses: softprops/action-gh-release@master
         with:
           tag_name: ${{env.WRT_CONFIG}}-${{env.WRT_INFO}}-${{env.WRT_BRANCH}}-${{env.WRT_DATE}}
@@ -300,10 +347,8 @@ jobs:
             平台：${{env.WRT_TARGET}}
 
             登录地址：${{env.WRT_IP}}
-            登录密码：${{env.WRT_PW}}
 
             WIFI名称：${{env.WRT_SSID}}
-            WIFI密码：${{env.WRT_WORD}}
 
             内核版本：${{env.WRT_KVER}}
             插件列表：${{env.WRT_LIST}}

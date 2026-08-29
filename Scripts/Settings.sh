@@ -43,6 +43,20 @@ echo "CONFIG_PACKAGE_luci-app-$WRT_THEME-config=y" >> ./.config
 #APK插件切换回IPK
 echo "CONFIG_USE_APK=n" >> ./.config
 
+# Arthur's eMMC is worn, so keep nlbwmon's frequently updated database in RAM.
+if [[ "${WRT_PACKAGE_PROFILE:-general}" == "arthur" ]]; then
+	NLBWMON_CONFIG=$(find ./feeds/packages/net/nlbwmon/ -type f -name "nlbwmon.config" -print -quit 2>/dev/null)
+	if [ -z "$NLBWMON_CONFIG" ]; then
+		echo "nlbwmon.config was not found" >&2
+		exit 1
+	fi
+	sed -i 's#option database_directory .*#option database_directory /tmp/nlbwmon#' "$NLBWMON_CONFIG"
+	grep -qF 'option database_directory /tmp/nlbwmon' "$NLBWMON_CONFIG" || {
+		echo "Failed to move the nlbwmon database to RAM" >&2
+		exit 1
+	}
+fi
+
 #引入私有扩展配置
 if [ -f "$GITHUB_WORKSPACE/Config/PRIVATE.txt" ]; then
 	echo "Applying private configurations from PRIVATE.txt..."
