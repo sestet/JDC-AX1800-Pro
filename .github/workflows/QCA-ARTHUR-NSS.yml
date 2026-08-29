@@ -12,12 +12,12 @@ on:
         type: string
       SSID:
         description: 'Default Wi-Fi name'
-        default: 'Kwrt_5G'
+        default: 'OWRT'
         required: true
         type: string
       LAN_IP:
         description: 'Default management address'
-        default: '192.168.1.100'
+        default: '192.168.1.1'
         required: true
         type: string
       PACKAGE:
