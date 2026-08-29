@@ -12,7 +12,7 @@ on:
         type: string
       SSID:
         description: 'Default Wi-Fi name'
-        default: 'OWRT'
+        default: 'ImmortalWrt'
         required: true
         type: string
       LAN_IP:
