@@ -252,6 +252,13 @@ jobs:
             exit 1
           fi
 
+          FWTOOL_SH='./package/base-files/files/lib/upgrade/fwtool.sh'
+          FWTOOL_FIXED='if { [ "${devicecompat#.*}" != "${imagecompat#.*}" ] || [ "$dev" = "$oem" ]; } && [ "$SAVE_CONFIG" = "1" ]; then'
+          grep -qF "$FWTOOL_FIXED" "$FWTOOL_SH" || {
+            echo "::error::The fwtool compatibility-check fix is missing"
+            exit 1
+          }
+
           MISSING_PACKAGE=0
           while IFS= read -r PACKAGE_CONFIG; do
             if grep -qxF "$PACKAGE_CONFIG" .config; then

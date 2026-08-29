@@ -55,6 +55,19 @@ if [[ "${WRT_PACKAGE_PROFILE:-general}" == "arthur" ]]; then
 		echo "Failed to move the nlbwmon database to RAM" >&2
 		exit 1
 	}
+
+	FWTOOL_SH="./package/base-files/files/lib/upgrade/fwtool.sh"
+	FWTOOL_PATCH="$GITHUB_WORKSPACE/Patches/001-fix-fwtool-compat-check.patch"
+	FWTOOL_BROKEN='if (([ "${devicecompat#.*}" != "${imagecompat#.*}" ] || [ "$dev" = "$oem" ])) && [ "$SAVE_CONFIG" = "1" ]; then'
+	FWTOOL_FIXED='if { [ "${devicecompat#.*}" != "${imagecompat#.*}" ] || [ "$dev" = "$oem" ]; } && [ "$SAVE_CONFIG" = "1" ]; then'
+
+	if grep -qF "$FWTOOL_BROKEN" "$FWTOOL_SH"; then
+		patch -p1 --forward < "$FWTOOL_PATCH"
+	fi
+	grep -qF "$FWTOOL_FIXED" "$FWTOOL_SH" || {
+		echo "Failed to apply the fwtool compatibility-check fix" >&2
+		exit 1
+	}
 fi
 
 #引入私有扩展配置
