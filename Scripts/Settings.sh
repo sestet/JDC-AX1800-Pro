@@ -21,12 +21,18 @@ if [ -f "$WIFI_SH" ]; then
 elif [ -f "$WIFI_UC" ]; then
 	#修改WIFI名称
 	sed -i "s/ssid='.*'/ssid='$WRT_SSID'/g" $WIFI_UC
-	#修改WIFI密码
-	sed -i "s/key='.*'/key='$WRT_WORD'/g" $WIFI_UC
 	#修改WIFI地区
 	sed -i "s/country='.*'/country='CN'/g" $WIFI_UC
-	#修改WIFI加密
-	sed -i "s/encryption='.*'/encryption='psk2+ccmp'/g" $WIFI_UC
+	if [[ "${WRT_WIFI_OPEN:-false}" == "true" ]]; then
+		# ImmortalWrt official first-boot Wi-Fi defaults: enabled and open.
+		sed -i "s/encryption='.*'/encryption='none'/g" $WIFI_UC
+		sed -i "s/key='.*'/key=''/g" $WIFI_UC
+		sed -i "s/disabled='.*'/disabled='0'/g" $WIFI_UC
+	else
+		#修改WIFI密码和加密
+		sed -i "s/key='.*'/key='$WRT_WORD'/g" $WIFI_UC
+		sed -i "s/encryption='.*'/encryption='psk2+ccmp'/g" $WIFI_UC
+	fi
 fi
 
 CFG_FILE="./package/base-files/files/bin/config_generate"
@@ -45,6 +51,35 @@ echo "CONFIG_USE_APK=n" >> ./.config
 
 # Arthur's eMMC is worn, so keep nlbwmon's frequently updated database in RAM.
 if [[ "${WRT_PACKAGE_PROFILE:-general}" == "arthur" ]]; then
+	CLOUDFLARED_MENU=$(find ./feeds/luci/applications/luci-app-cloudflared/ -type f -name 'luci-app-cloudflared.json' -print -quit 2>/dev/null)
+	[ -n "$CLOUDFLARED_MENU" ] || {
+		echo "luci-app-cloudflared menu definition was not found" >&2
+		exit 1
+	}
+	sed -i 's#admin/vpn/cloudflared#admin/services/cloudflared#g' "$CLOUDFLARED_MENU"
+	if grep -qF 'admin/vpn/cloudflared' "$CLOUDFLARED_MENU" || \
+		! grep -qF 'admin/services/cloudflared' "$CLOUDFLARED_MENU"; then
+		echo "Failed to move Cloudflare Tunnel to the Services menu" >&2
+		exit 1
+	fi
+
+	UHTTPD_CONFIG="./package/network/services/uhttpd/files/uhttpd.config"
+	[ -f "$UHTTPD_CONFIG" ] || {
+		echo "uhttpd.config was not found" >&2
+		exit 1
+	}
+	sed -i -E \
+		-e 's|^[[:space:]]*#[[:space:]]*list listen_https[[:space:]]+0\.0\.0\.0:443|	list listen_https	0.0.0.0:443|' \
+		-e 's|^[[:space:]]*#[[:space:]]*list listen_https[[:space:]]+\[::\]:443|	list listen_https	[::]:443|' \
+		-e "s|^[[:space:]]*option redirect_https[[:space:]]+.*|	option redirect_https	0|" \
+		"$UHTTPD_CONFIG"
+	if ! grep -Eq '^[[:space:]]*list listen_https[[:space:]]+0\.0\.0\.0:443$' "$UHTTPD_CONFIG" || \
+		! grep -Eq '^[[:space:]]*list listen_https[[:space:]]+\[::\]:443$' "$UHTTPD_CONFIG" || \
+		! grep -Eq '^[[:space:]]*option redirect_https[[:space:]]+0$' "$UHTTPD_CONFIG"; then
+		echo "Failed to configure simultaneous HTTP and HTTPS access" >&2
+		exit 1
+	fi
+
 	NLBWMON_CONFIG=$(find ./feeds/packages/net/nlbwmon/ -type f -name "nlbwmon.config" -print -quit 2>/dev/null)
 	if [ -z "$NLBWMON_CONFIG" ]; then
 		echo "nlbwmon.config was not found" >&2

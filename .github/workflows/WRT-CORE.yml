@@ -22,6 +22,10 @@ on:
       WRT_WORD:
         required: true
         type: string
+      WRT_WIFI_OPEN:
+        required: false
+        type: boolean
+        default: false
       WRT_IP:
         required: true
         type: string
@@ -46,7 +50,8 @@ on:
         type: string
       WRT_TEST:
         required: false
-        type: string
+        type: boolean
+        default: false
       WRT_USE_GENERAL:
         required: false
         type: boolean
@@ -66,6 +71,7 @@ env:
   WRT_NAME: ${{inputs.WRT_NAME}}
   WRT_SSID: ${{inputs.WRT_SSID}}
   WRT_WORD: ${{secrets.WRT_WIFI_PASSWORD || inputs.WRT_WORD}}
+  WRT_WIFI_OPEN: ${{inputs.WRT_WIFI_OPEN}}
   WRT_IP: ${{inputs.WRT_IP}}
   WRT_PW: ${{inputs.WRT_PW}}
   WRT_REPO: ${{inputs.WRT_REPO}}
@@ -346,7 +352,8 @@ jobs:
           }
 
           for REQUIRED_PACKAGE in \
-            luci-theme-aurora luci-app-openclash luci-app-mwan3 luci-app-travelmate \
+            luci-theme-aurora luci-theme-bootstrap luci-ssl-openssl px5g-openssl \
+            luci-app-openclash luci-app-mwan3 luci-app-travelmate \
             luci-app-cloudflared luci-app-store luci-app-diskman luci-app-ksmbd \
             luci-app-aria2 kmod-qca-nss-drv kmod-qca-nss-ecm kmod-usb-net-rndis; do
             grep -q "^${REQUIRED_PACKAGE} - " "$MANIFEST" || {
@@ -361,11 +368,66 @@ jobs:
             echo "::error::The final Arthur image has the wrong LAN address"
             exit 1
           }
+          grep -qF "set system.@system[-1].hostname='$WRT_NAME'" <<< "$CONFIG_GENERATE" || {
+            echo "::error::The final Arthur image has the wrong hostname"
+            exit 1
+          }
+
+          DHCP_CONFIG="$(unsquashfs -cat "$ROOTFS" etc/config/dhcp)"
+          grep -Eq "^[[:space:]]*option domain[[:space:]]+'lan'[[:space:]]*$" <<< "$DHCP_CONFIG" || {
+            echo "::error::The final Arthur image does not provide the expected .lan local domain"
+            exit 1
+          }
 
           WIFI_DEFAULTS="$(unsquashfs -cat "$ROOTFS" lib/wifi/mac80211.uc)"
-          if ! grep -qF "set \${si}.ssid='$WRT_SSID'" <<< "$WIFI_DEFAULTS" || \
-             ! grep -qF "set \${si}.key='$WRT_WORD'" <<< "$WIFI_DEFAULTS"; then
-            echo "::error::The final Arthur image has the wrong Wi-Fi defaults"
+          grep -qF "set \${si}.ssid='$WRT_SSID'" <<< "$WIFI_DEFAULTS" || {
+            echo "::error::The final Arthur image has the wrong Wi-Fi SSID"
+            exit 1
+          }
+          if [[ "$WRT_WIFI_OPEN" == 'true' ]]; then
+            if ! grep -qF "set \${si}.encryption='none'" <<< "$WIFI_DEFAULTS" || \
+               ! grep -qF "set \${si}.key=''" <<< "$WIFI_DEFAULTS" || \
+               ! grep -qF "set \${si}.disabled='0'" <<< "$WIFI_DEFAULTS"; then
+              echo "::error::The final Arthur image does not use the expected open Wi-Fi defaults"
+              exit 1
+            fi
+          elif ! grep -qF "set \${si}.key='$WRT_WORD'" <<< "$WIFI_DEFAULTS"; then
+            echo "::error::The final Arthur image has the wrong Wi-Fi password"
+            exit 1
+          fi
+
+          UHTTPD_CONFIG="$(unsquashfs -cat "$ROOTFS" etc/config/uhttpd)"
+          UHTTPD_NORMALIZED="$(sed -E 's/^[[:space:]]+//; s/[[:space:]]+/ /g; s/[[:space:]]+$//' <<< "$UHTTPD_CONFIG")"
+          for LISTENER in \
+            'list listen_http 0.0.0.0:80' \
+            'list listen_http [::]:80' \
+            'list listen_https 0.0.0.0:443' \
+            'list listen_https [::]:443'; do
+            grep -qxF "$LISTENER" <<< "$UHTTPD_NORMALIZED" || {
+              echo "::error::The final Arthur image is missing uhttpd listener: $LISTENER"
+              exit 1
+            }
+          done
+          grep -Eq '^[[:space:]]*option redirect_https[[:space:]]+0[[:space:]]*$' <<< "$UHTTPD_CONFIG" || {
+            echo "::error::The final Arthur image unexpectedly redirects HTTP to HTTPS"
+            exit 1
+          }
+
+          if unsquashfs -ll "$ROOTFS" 2>/dev/null | grep -Eq '/etc/uhttpd\.(key|crt)$'; then
+            echo "::error::The final Arthur image contains a pre-generated HTTPS private key or certificate"
+            exit 1
+          fi
+
+          AURORA_DEFAULTS="$(unsquashfs -cat "$ROOTFS" etc/uci-defaults/30_luci-theme-aurora)"
+          grep -qF 'set luci.main.mediaurlbase=/luci-static/aurora' <<< "$AURORA_DEFAULTS" || {
+            echo "::error::Aurora is not configured as the default LuCI theme"
+            exit 1
+          }
+
+          CLOUDFLARED_MENU="$(unsquashfs -cat "$ROOTFS" usr/share/luci/menu.d/luci-app-cloudflared.json)"
+          if grep -qF 'admin/vpn/cloudflared' <<< "$CLOUDFLARED_MENU" || \
+             ! grep -qF 'admin/services/cloudflared' <<< "$CLOUDFLARED_MENU"; then
+            echo "::error::Cloudflare Tunnel was not moved cleanly to the Services menu"
             exit 1
           fi
 
