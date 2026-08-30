@@ -343,6 +343,17 @@ jobs:
             exit 1
           }
 
+          ATH11K_MODULE="$(unsquashfs -ll "$ROOTFS" 2>/dev/null | awk '$NF ~ /\/ath11k\.ko$/ { sub(/^squashfs-root\//, "", $NF); print $NF; exit }')"
+          [ -n "$ATH11K_MODULE" ] || {
+            echo "::error::The final Arthur image does not contain ath11k.ko"
+            exit 1
+          }
+          if ! unsquashfs -cat "$ROOTFS" "$ATH11K_MODULE" 2>/dev/null | \
+               strings | grep -F 'failed to authorize open AP peer' >/dev/null; then
+            echo "::error::The final Arthur ath11k module is missing the NSS open-AP authorization fix"
+            exit 1
+          fi
+
           CORE_LINE="$(unsquashfs -ll "$ROOTFS" 2>/dev/null | grep '/etc/openclash/core/clash_meta$' || true)"
           case "$CORE_LINE" in
             -rwx*) ;;

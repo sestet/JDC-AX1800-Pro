@@ -11,12 +11,9 @@ Authorize open AP peers during the ASSOC-to-AUTHORIZED transition. The
 peer security type is initialized to HAL_ENCRYPT_TYPE_OPEN and updated
 when a key is installed, so this does not duplicate the keyed path.
 
-While touching the state transition, fold a duplicated
-AUTHORIZED-to-ASSOC branch left by the NSS fast-rx patch stack.
-
 --- a/drivers/net/wireless/ath/ath11k/mac.c
 +++ b/drivers/net/wireless/ath/ath11k/mac.c
-@@ -10432,8 +10432,23 @@ static int ath11k_mac_op_sta_state(struc
+@@ -10432,7 +10432,22 @@ static int ath11k_mac_op_sta_state(struc
  		spin_lock_bh(&ar->ab->base_lock);
  
  		peer = ath11k_peer_find(ar->ab, arvif->vdev_id, sta->addr);
@@ -40,24 +37,3 @@ AUTHORIZED-to-ASSOC branch left by the NSS fast-rx patch stack.
 +		}
  
  		spin_unlock_bh(&ar->ab->base_lock);
- 
-@@ -10500,19 +10515,10 @@ static int ath11k_mac_op_sta_state(struc
- 	} else if (old_state == IEEE80211_STA_AUTHORIZED &&
- 		   new_state == IEEE80211_STA_ASSOC) {
- 
--		spin_lock_bh(&ar->ab->base_lock);
--		peer = ath11k_peer_find(ar->ab, arvif->vdev_id, sta->addr);
--		if (peer)
--			peer->is_authorized = false;
--		spin_unlock_bh(&ar->ab->base_lock);
--	} else if (old_state == IEEE80211_STA_AUTHORIZED &&
--		   new_state == IEEE80211_STA_ASSOC) {
- 		spin_lock_bh(&ar->ab->base_lock);
--
- 		peer = ath11k_peer_find(ar->ab, arvif->vdev_id, sta->addr);
- 		if (peer)
- 			peer->is_authorized = false;
--
- 		spin_unlock_bh(&ar->ab->base_lock);
- 	} else if (old_state == IEEE80211_STA_ASSOC &&
- 		   new_state == IEEE80211_STA_AUTH &&
