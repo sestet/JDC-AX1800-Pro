@@ -43,8 +43,8 @@ jobs:
       WRT_THEME: argon
       WRT_NAME: ImmortalWrt
       WRT_SSID: ${{inputs.SSID}}
-      WRT_WORD: 12345678
-      WRT_WIFI_OPEN: false
+      WRT_WORD: ''
+      WRT_WIFI_OPEN: true
       WRT_IP: ${{inputs.LAN_IP}}
       WRT_PW: none
       WRT_REPO: https://github.com/VIKINGYFY/immortalwrt.git
