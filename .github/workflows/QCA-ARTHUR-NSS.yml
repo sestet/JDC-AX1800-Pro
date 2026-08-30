@@ -17,7 +17,7 @@ on:
         type: string
       LAN_IP:
         description: 'Default management address'
-        default: '192.168.1.1'
+        default: '192.168.1.100'
         required: true
         type: string
       PACKAGE:
