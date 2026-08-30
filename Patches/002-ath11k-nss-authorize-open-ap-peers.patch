@@ -1,0 +1,63 @@
+From: Codex <codex@openai.com>
+Date: Sun, 30 Aug 2026 22:30:00 +0800
+Subject: [PATCH] wifi: ath11k: authorize open AP peers in NSS
+
+NSS peer authorization is currently performed from set_key(). Open AP
+peers never install a key, so they remain unauthorized in NSS even after
+mac80211 moves them to IEEE80211_STA_AUTHORIZED. Such stations can
+associate, but their data traffic never reaches the bridge.
+
+Authorize open AP peers during the ASSOC-to-AUTHORIZED transition. The
+peer security type is initialized to HAL_ENCRYPT_TYPE_OPEN and updated
+when a key is installed, so this does not duplicate the keyed path.
+
+While touching the state transition, fold a duplicated
+AUTHORIZED-to-ASSOC branch left by the NSS fast-rx patch stack.
+
+--- a/drivers/net/wireless/ath/ath11k/mac.c
++++ b/drivers/net/wireless/ath/ath11k/mac.c
+@@ -10432,8 +10432,23 @@ static int ath11k_mac_op_sta_state(struc
+ 		spin_lock_bh(&ar->ab->base_lock);
+ 
+ 		peer = ath11k_peer_find(ar->ab, arvif->vdev_id, sta->addr);
+-		if (peer)
++		if (peer) {
+ 			peer->is_authorized = true;
++
++			/* Open APs do not install a key, so set_key() never gets a
++			 * chance to authorize their peers in NSS.
++			 */
++			if (ar->ab->nss.enabled &&
++			    vif->type == NL80211_IFTYPE_AP &&
++			    peer->sec_type == HAL_ENCRYPT_TYPE_OPEN) {
++				ret = ath11k_nss_set_peer_authorize(ar,
++							     peer->peer_id);
++				if (ret)
++					ath11k_warn(ar->ab,
++						    "failed to authorize open AP peer %pM in NSS: %d\n",
++						    sta->addr, ret);
++			}
++		}
+ 
+ 		spin_unlock_bh(&ar->ab->base_lock);
+ 
+@@ -10500,19 +10515,10 @@ static int ath11k_mac_op_sta_state(struc
+ 	} else if (old_state == IEEE80211_STA_AUTHORIZED &&
+ 		   new_state == IEEE80211_STA_ASSOC) {
+ 
+-		spin_lock_bh(&ar->ab->base_lock);
+-		peer = ath11k_peer_find(ar->ab, arvif->vdev_id, sta->addr);
+-		if (peer)
+-			peer->is_authorized = false;
+-		spin_unlock_bh(&ar->ab->base_lock);
+-	} else if (old_state == IEEE80211_STA_AUTHORIZED &&
+-		   new_state == IEEE80211_STA_ASSOC) {
+ 		spin_lock_bh(&ar->ab->base_lock);
+-
+ 		peer = ath11k_peer_find(ar->ab, arvif->vdev_id, sta->addr);
+ 		if (peer)
+ 			peer->is_authorized = false;
+-
+ 		spin_unlock_bh(&ar->ab->base_lock);
+ 	} else if (old_state == IEEE80211_STA_ASSOC &&
+ 		   new_state == IEEE80211_STA_AUTH &&

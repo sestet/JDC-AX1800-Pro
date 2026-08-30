@@ -30,8 +30,13 @@ elif [ -f "$WIFI_UC" ]; then
 		sed -i "s/disabled='.*'/disabled='0'/g" $WIFI_UC
 	else
 		#修改WIFI密码和加密
+		if (( ${#WRT_WORD} < 8 || ${#WRT_WORD} > 63 )); then
+			echo "WPA2 Wi-Fi password must contain 8 to 63 characters" >&2
+			exit 1
+		fi
 		sed -i "s/key='.*'/key='$WRT_WORD'/g" $WIFI_UC
 		sed -i "s/encryption='.*'/encryption='psk2+ccmp'/g" $WIFI_UC
+		sed -i "s/disabled='.*'/disabled='0'/g" $WIFI_UC
 	fi
 fi
 
@@ -89,6 +94,18 @@ if [[ "${WRT_PACKAGE_PROFILE:-general}" == "arthur" ]]; then
 	fi
 	grep -qF "$FWTOOL_FIXED" "$FWTOOL_SH" || {
 		echo "Failed to apply the fwtool compatibility-check fix" >&2
+		exit 1
+	}
+
+	NSS_OPEN_AP_PATCH="$GITHUB_WORKSPACE/Patches/002-ath11k-nss-authorize-open-ap-peers.patch"
+	NSS_OPEN_AP_TARGET="./package/kernel/mac80211/patches/nss/ath11k/999-931-ath11k-nss-authorize-open-ap-peers.patch"
+	[ -f "$NSS_OPEN_AP_PATCH" ] || {
+		echo "ath11k NSS open-AP authorization patch was not found" >&2
+		exit 1
+	}
+	install -m 0644 "$NSS_OPEN_AP_PATCH" "$NSS_OPEN_AP_TARGET"
+	grep -qF 'ath11k_nss_set_peer_authorize' "$NSS_OPEN_AP_TARGET" || {
+		echo "Failed to install the ath11k NSS open-AP authorization fix" >&2
 		exit 1
 	}
 fi

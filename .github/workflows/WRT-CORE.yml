@@ -405,9 +405,13 @@ jobs:
               echo "::error::The final Arthur image does not use the expected open Wi-Fi defaults"
               exit 1
             fi
-          elif ! grep -qF "set \${si}.key='$WRT_WORD'" <<< "$WIFI_DEFAULTS"; then
-            echo "::error::The final Arthur image has the wrong Wi-Fi password"
-            exit 1
+          else
+            if ! grep -qF "set \${si}.encryption='psk2+ccmp'" <<< "$WIFI_DEFAULTS" || \
+               ! grep -qF "set \${si}.key='$WRT_WORD'" <<< "$WIFI_DEFAULTS" || \
+               ! grep -qF "set \${si}.disabled='0'" <<< "$WIFI_DEFAULTS"; then
+              echo "::error::The final Arthur image does not use the expected WPA2 Wi-Fi defaults"
+              exit 1
+            fi
           fi
 
           UHTTPD_CONFIG="$(unsquashfs -cat "$ROOTFS" etc/config/uhttpd)"
