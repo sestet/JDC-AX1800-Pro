@@ -51,7 +51,8 @@ echo "CONFIG_USE_APK=n" >> ./.config
 
 # Arthur's eMMC is worn, so keep nlbwmon's frequently updated database in RAM.
 if [[ "${WRT_PACKAGE_PROFILE:-general}" == "arthur" ]]; then
-	CLOUDFLARED_MENU=$(find ./feeds/luci/applications/luci-app-cloudflared/ -type f -name 'luci-app-cloudflared.json' -print -quit 2>/dev/null)
+	CLOUDFLARED_MENU=$(find ./feeds/luci/applications/luci-app-cloudflared/ \
+		-type f -path '*/usr/share/luci/menu.d/luci-app-cloudflared.json' -print -quit 2>/dev/null)
 	[ -n "$CLOUDFLARED_MENU" ] || {
 		echo "luci-app-cloudflared menu definition was not found" >&2
 		exit 1
