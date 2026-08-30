@@ -12,7 +12,7 @@ on:
         type: string
       SSID:
         description: 'Default Wi-Fi name'
-        default: 'ImmortalWrt'
+        default: 'OWRT'
         required: true
         type: string
       LAN_IP:
@@ -43,7 +43,7 @@ jobs:
       WRT_THEME: aurora
       WRT_NAME: ARTHUR
       WRT_SSID: ${{inputs.SSID}}
-      WRT_WORD: Arthur-Setup-Only
+      WRT_WORD: 12345678
       WRT_IP: ${{inputs.LAN_IP}}
       WRT_PW: none
       WRT_REPO: https://github.com/VIKINGYFY/immortalwrt.git
@@ -54,5 +54,3 @@ jobs:
       WRT_TEST: ${{inputs.TEST}}
       WRT_USE_GENERAL: false
       WRT_PACKAGE_PROFILE: arthur
-    secrets:
-      WRT_WIFI_PASSWORD: ${{secrets.ARTHUR_WIFI_PASSWORD}}
