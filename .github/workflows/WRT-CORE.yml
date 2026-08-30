@@ -95,7 +95,7 @@ jobs:
           sudo -E apt -yqq autoremove --purge
           sudo -E apt -yqq autoclean
           sudo -E apt -yqq clean
-          sudo -E apt -yqq install dos2unix libfuse-dev libncurses-dev libncurses6
+          sudo -E apt -yqq install dos2unix libfuse-dev libncurses-dev libncurses6 squashfs-tools
           sudo bash -c 'bash <(curl -sL https://build-scripts.immortalwrt.org/init_build_environment.sh)'
           sudo -E systemctl daemon-reload
           sudo -E timedatectl set-timezone "Asia/Shanghai"
@@ -259,6 +259,21 @@ jobs:
             exit 1
           }
 
+          OPENCLASH_CORE='./package/luci-app-openclash/root/etc/openclash/core/clash_meta'
+          [ -x "$OPENCLASH_CORE" ] || {
+            echo "::error::The pinned OpenClash core is missing or not executable"
+            exit 1
+          }
+
+          for DUPLICATE_OPENCLASH in \
+            './package/feeds/luci/luci-app-openclash' \
+            './feeds/luci/applications/luci-app-openclash'; do
+            if [ -e "$DUPLICATE_OPENCLASH" ] || [ -L "$DUPLICATE_OPENCLASH" ]; then
+              echo "::error::A duplicate feeds OpenClash package remains: $DUPLICATE_OPENCLASH"
+              exit 1
+            fi
+          done
+
           MISSING_PACKAGE=0
           while IFS= read -r PACKAGE_CONFIG; do
             if grep -qxF "$PACKAGE_CONFIG" .config; then
@@ -293,6 +308,86 @@ jobs:
           cd ./wrt/
 
           make -j$(nproc) || make -j1 V=s
+
+      - name: Validate Arthur Firmware Contents
+        if: env.WRT_PACKAGE_PROFILE == 'arthur' && env.WRT_TEST != 'true'
+        run: |
+          cd ./wrt/
+
+          SYSUPGRADE="$(find ./bin/targets/ -type f -name '*jdcloud_re-ss-01-squashfs-sysupgrade*.bin' -print -quit)"
+          MANIFEST="$(find ./bin/targets/ -type f -name '*jdcloud_re-ss-01*.manifest' -print -quit)"
+          [ -n "$SYSUPGRADE" ] && [ -n "$MANIFEST" ] || {
+            echo "::error::Arthur sysupgrade image or manifest was not generated"
+            exit 1
+          }
+
+          TEMP_DIR="$(mktemp -d)"
+          trap 'rm -rf "$TEMP_DIR"' EXIT INT TERM
+          tar -xf "$SYSUPGRADE" -C "$TEMP_DIR"
+          ROOTFS="$(find "$TEMP_DIR" -type f -name root -print -quit)"
+          [ -n "$ROOTFS" ] || {
+            echo "::error::Arthur SquashFS root was not found in the sysupgrade image"
+            exit 1
+          }
+
+          CORE_LINE="$(unsquashfs -ll "$ROOTFS" 2>/dev/null | grep '/etc/openclash/core/clash_meta$' || true)"
+          case "$CORE_LINE" in
+            -rwx*) ;;
+            *)
+              echo "::error::The final Arthur image does not contain an executable OpenClash core"
+              exit 1
+              ;;
+          esac
+
+          OPENCLASH_VERSION="$(sed -n 's/^PKG_VERSION:=//p' ./package/luci-app-openclash/Makefile | head -n 1)"
+          grep -qF "luci-app-openclash - $OPENCLASH_VERSION" "$MANIFEST" || {
+            echo "::error::The final image did not use the pinned OpenClash package"
+            exit 1
+          }
+
+          for REQUIRED_PACKAGE in \
+            luci-theme-aurora luci-app-openclash luci-app-mwan3 luci-app-travelmate \
+            luci-app-cloudflared luci-app-store luci-app-diskman luci-app-ksmbd \
+            luci-app-aria2 kmod-qca-nss-drv kmod-qca-nss-ecm kmod-usb-net-rndis; do
+            grep -q "^${REQUIRED_PACKAGE} - " "$MANIFEST" || {
+              echo "::error::The final Arthur image is missing $REQUIRED_PACKAGE"
+              exit 1
+            }
+          done
+
+          LAN_DEFAULT="lan) ipad=\${ipaddr:-\"$WRT_IP\"} ;;"
+          CONFIG_GENERATE="$(unsquashfs -cat "$ROOTFS" bin/config_generate)"
+          grep -qF "$LAN_DEFAULT" <<< "$CONFIG_GENERATE" || {
+            echo "::error::The final Arthur image has the wrong LAN address"
+            exit 1
+          }
+
+          WIFI_DEFAULTS="$(unsquashfs -cat "$ROOTFS" lib/wifi/mac80211.uc)"
+          if ! grep -qF "set \${si}.ssid='$WRT_SSID'" <<< "$WIFI_DEFAULTS" || \
+             ! grep -qF "set \${si}.key='$WRT_WORD'" <<< "$WIFI_DEFAULTS"; then
+            echo "::error::The final Arthur image has the wrong Wi-Fi defaults"
+            exit 1
+          fi
+
+          SHADOW_CONTENT="$(unsquashfs -cat "$ROOTFS" etc/shadow)"
+          grep -q '^root:::' <<< "$SHADOW_CONTENT" || {
+            echo "::error::The final Arthur image does not have the expected blank root password"
+            exit 1
+          }
+
+          # shellcheck disable=SC2016
+          FWTOOL_FIXED='if { [ "${devicecompat#.*}" != "${imagecompat#.*}" ] || [ "$dev" = "$oem" ]; } && [ "$SAVE_CONFIG" = "1" ]; then'
+          FWTOOL_CONTENT="$(unsquashfs -cat "$ROOTFS" lib/upgrade/fwtool.sh)"
+          grep -qF "$FWTOOL_FIXED" <<< "$FWTOOL_CONTENT" || {
+            echo "::error::The final Arthur image is missing the fwtool fix"
+            exit 1
+          }
+
+          NLBWMON_CONFIG="$(unsquashfs -cat "$ROOTFS" etc/config/nlbwmon)"
+          grep -qF 'option database_directory /tmp/nlbwmon' <<< "$NLBWMON_CONFIG" || {
+            echo "::error::The final Arthur image does not keep nlbwmon data in RAM"
+            exit 1
+          }
 
       - name: Machine Information
         run: |

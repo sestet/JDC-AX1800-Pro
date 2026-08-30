@@ -50,6 +50,13 @@ OPENCLASH_SOURCE="$(mktemp -d)"
 ISTORE_SOURCE="$(mktemp -d)"
 trap 'rm -rf "$OPENCLASH_SOURCE" "$ISTORE_SOURCE"' EXIT INT TERM
 
+# feeds install creates both a source directory and a package symlink. Remove
+# both so the pinned Arthur package is the only OpenClash definition available.
+rm -rf \
+	luci-app-openclash \
+	feeds/luci/luci-app-openclash \
+	../feeds/luci/applications/luci-app-openclash
+
 checkout_repo "vernesong/OpenClash" "$OPENCLASH_COMMIT" "$OPENCLASH_SOURCE"
 cp -a "$OPENCLASH_SOURCE/luci-app-openclash" ./
 
@@ -63,6 +70,10 @@ tar -xzf "$CORE_ARCHIVE" -C luci-app-openclash/root/etc/openclash/core
 mv luci-app-openclash/root/etc/openclash/core/clash \
 	luci-app-openclash/root/etc/openclash/core/clash_meta
 chmod 0755 luci-app-openclash/root/etc/openclash/core/clash_meta
+[ -x luci-app-openclash/root/etc/openclash/core/clash_meta ] || {
+	echo "Pinned OpenClash core was not installed" >&2
+	exit 1
+}
 rm -f "$CORE_ARCHIVE"
 
 checkout_repo "linkease/istore" "$ISTORE_COMMIT" "$ISTORE_SOURCE"
