@@ -40,7 +40,7 @@ jobs:
     uses: ./.github/workflows/WRT-CORE.yml
     with:
       WRT_CONFIG: IPQ60XX-ARTHUR-NSS-WIFI-YES
-      WRT_THEME: aurora
+      WRT_THEME: argon
       WRT_NAME: ImmortalWrt
       WRT_SSID: ${{inputs.SSID}}
       WRT_WORD: none

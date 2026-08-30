@@ -296,6 +296,13 @@ jobs:
 
           [ "$MISSING_PACKAGE" -eq 0 ]
 
+          SELECTED_THEMES="$(sed -n 's/^CONFIG_PACKAGE_\(luci-theme-[^=]*\)=y$/\1/p' .config)"
+          if [ "$SELECTED_THEMES" != 'luci-theme-argon' ]; then
+            echo "::error::Arthur must contain only the Argon LuCI theme"
+            printf '%s\n' "$SELECTED_THEMES"
+            exit 1
+          fi
+
       - name: Clean Build Artifacts
         run: |
           cd ./wrt/
@@ -352,7 +359,7 @@ jobs:
           }
 
           for REQUIRED_PACKAGE in \
-            luci-theme-aurora luci-theme-bootstrap luci-ssl-openssl px5g-openssl \
+            luci-theme-argon luci-app-argon-config luci-ssl-openssl px5g-openssl \
             luci-app-openclash luci-app-mwan3 luci-app-travelmate \
             luci-app-cloudflared luci-app-store luci-app-diskman luci-app-ksmbd \
             luci-app-aria2 kmod-qca-nss-drv kmod-qca-nss-ecm kmod-usb-net-rndis; do
@@ -361,6 +368,13 @@ jobs:
               exit 1
             }
           done
+
+          INSTALLED_THEMES="$(sed -n 's/^\(luci-theme-[^ ]*\) - .*/\1/p' "$MANIFEST")"
+          if [ "$INSTALLED_THEMES" != 'luci-theme-argon' ]; then
+            echo "::error::The final Arthur image must contain only the Argon LuCI theme"
+            printf '%s\n' "$INSTALLED_THEMES"
+            exit 1
+          fi
 
           LAN_DEFAULT="lan) ipad=\${ipaddr:-\"$WRT_IP\"} ;;"
           CONFIG_GENERATE="$(unsquashfs -cat "$ROOTFS" bin/config_generate)"
@@ -418,9 +432,9 @@ jobs:
             exit 1
           fi
 
-          AURORA_DEFAULTS="$(unsquashfs -cat "$ROOTFS" etc/uci-defaults/30_luci-theme-aurora)"
-          grep -qF 'set luci.main.mediaurlbase=/luci-static/aurora' <<< "$AURORA_DEFAULTS" || {
-            echo "::error::Aurora is not configured as the default LuCI theme"
+          ARGON_DEFAULTS="$(unsquashfs -cat "$ROOTFS" etc/uci-defaults/30_luci-theme-argon)"
+          grep -qF 'set luci.main.mediaurlbase=/luci-static/argon' <<< "$ARGON_DEFAULTS" || {
+            echo "::error::Argon is not configured as the default LuCI theme"
             exit 1
           }
 

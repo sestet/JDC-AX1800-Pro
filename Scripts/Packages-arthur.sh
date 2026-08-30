@@ -3,8 +3,8 @@
 
 set -euo pipefail
 
-AURORA_COMMIT="5f4bd6dc5f14ec091814846cd954e6139f7e563d"
-AURORA_CONFIG_COMMIT="110aeca1ffab6d2dece43dcd28b15efe00d5ca83"
+ARGON_COMMIT="ddefe5f05ca334dba10d2d65d25ebf14e986ee88"
+ARGON_CONFIG_COMMIT="3e099a37c3f71d0de677f1b6b0f4bffd57d91dac"
 OPENCLASH_COMMIT="5f270df6ca97f02c5476849f1b2724b64b7eef01"
 OPENCLASH_CORE_COMMIT="6625f341886253db3e44f9ded0cc1cd6b8bcbc3d"
 OPENCLASH_CORE_SHA256="8252d16726041872825cdd9089c798c318f8862466b40b34d8bf62225ef57e34"
@@ -43,8 +43,16 @@ verify_sha256() {
 
 echo "Installing pinned Arthur package sources"
 
-checkout_repo "eamonxg/luci-theme-aurora" "$AURORA_COMMIT" "luci-theme-aurora"
-checkout_repo "eamonxg/luci-app-aurora-config" "$AURORA_CONFIG_COMMIT" "luci-app-aurora-config"
+rm -rf \
+	luci-theme-argon \
+	luci-app-argon-config \
+	feeds/luci/luci-theme-argon \
+	feeds/luci/luci-app-argon-config \
+	../feeds/luci/themes/luci-theme-argon \
+	../feeds/luci/applications/luci-app-argon-config
+
+checkout_repo "jerrykuku/luci-theme-argon" "$ARGON_COMMIT" "luci-theme-argon"
+checkout_repo "jerrykuku/luci-app-argon-config" "$ARGON_CONFIG_COMMIT" "luci-app-argon-config"
 
 OPENCLASH_SOURCE="$(mktemp -d)"
 ISTORE_SOURCE="$(mktemp -d)"
