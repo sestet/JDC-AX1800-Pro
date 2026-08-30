@@ -51,19 +51,6 @@ echo "CONFIG_USE_APK=n" >> ./.config
 
 # Arthur's eMMC is worn, so keep nlbwmon's frequently updated database in RAM.
 if [[ "${WRT_PACKAGE_PROFILE:-general}" == "arthur" ]]; then
-	CLOUDFLARED_MENU=$(find ./feeds/luci/applications/luci-app-cloudflared/ \
-		-type f -path '*/usr/share/luci/menu.d/luci-app-cloudflared.json' -print -quit 2>/dev/null)
-	[ -n "$CLOUDFLARED_MENU" ] || {
-		echo "luci-app-cloudflared menu definition was not found" >&2
-		exit 1
-	}
-	sed -i 's#admin/vpn/cloudflared#admin/services/cloudflared#g' "$CLOUDFLARED_MENU"
-	if grep -qF 'admin/vpn/cloudflared' "$CLOUDFLARED_MENU" || \
-		! grep -qF 'admin/services/cloudflared' "$CLOUDFLARED_MENU"; then
-		echo "Failed to move Cloudflare Tunnel to the Services menu" >&2
-		exit 1
-	fi
-
 	UHTTPD_CONFIG="./package/network/services/uhttpd/files/uhttpd.config"
 	[ -f "$UHTTPD_CONFIG" ] || {
 		echo "uhttpd.config was not found" >&2

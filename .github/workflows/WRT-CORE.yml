@@ -425,9 +425,9 @@ jobs:
           }
 
           CLOUDFLARED_MENU="$(unsquashfs -cat "$ROOTFS" usr/share/luci/menu.d/luci-app-cloudflared.json)"
-          if grep -qF 'admin/vpn/cloudflared' <<< "$CLOUDFLARED_MENU" || \
-             ! grep -qF 'admin/services/cloudflared' <<< "$CLOUDFLARED_MENU"; then
-            echo "::error::Cloudflare Tunnel was not moved cleanly to the Services menu"
+          if ! grep -qF 'admin/vpn/cloudflared' <<< "$CLOUDFLARED_MENU" || \
+             grep -qF 'admin/services/cloudflared' <<< "$CLOUDFLARED_MENU"; then
+            echo "::error::Cloudflare Tunnel is not using its upstream VPN menu"
             exit 1
           fi
 
